@@ -403063,6 +403063,14 @@
       "rstrip": false,
       "single_word": false,
       "special": true
+    },
+    "56371": {
+      "content": "<|sn|>",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
     }
   },
   "additional_special_tokens": [
@@ -403606,7 +403614,8 @@
     "<table>\n<tr>\n<td rowspan=\"9\" colspan=\"8\">",
     "<table>\n<tr>\n<td rowspan=\"9\" colspan=\"9\">",
     "<table>\n<tr>\n<td rowspan=\"9\">",
-    "<table>\n<tr>\n<td>"
+    "<table>\n<tr>\n<td>",
+    "<|sn|>"
   ],
   "bos_token": "<|bos|>",
   "clean_up_tokenization_spaces": false,
