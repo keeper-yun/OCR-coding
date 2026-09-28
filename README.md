@@ -1,1 +1,1 @@
-<h1>OCR-SVTRv2</h1>
+<h1>OCR</h1>
