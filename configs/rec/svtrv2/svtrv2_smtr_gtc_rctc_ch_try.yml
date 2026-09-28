@@ -1,23 +1,25 @@
 Global:
   device: gpu
-  epoch_num: 20
+  epoch_num: 100
   log_smooth_window: 20
   print_batch_step: 10
-  output_dir: /data/huawei/wzc/OpenOCR/output/rec/training/u14m_filter/svtrv2_rctc_try/v5.0_epoch20/
-  save_epoch_step: [15, 1]
+  output_dir: /data/huawei/wzc/OpenOCR/output/rec/training/BCTR/svtrv2_ch_try/v2.0_epoch100/
+  save_epoch_step: [0, 1]
   # evaluation is run every 2000 iterations
-  eval_epoch_step: [0, 1]
-  eval_batch_step: [0, 500]
-  cal_metric_during_train: True
+  eval_batch_step: [0, 2000]
+  eval_epoch_step: [0, 20]
+  cal_metric_during_train: False
   pretrained_model:
+   /data/huawei/wzc/OpenOCR/openocr_svtrv2_ch.pth
+  # ./output/rec/u14m_filter/svtrv2_rctc/best.pth
   checkpoints:
   use_tensorboard: false
   infer_img:
   # for data or label process
-  character_dict_path: &character_dict_path ./tools/utils/EN_symbol_dict.txt
+  character_dict_path: &character_dict_path ./tools/utils/ppocr_keys_v1.txt # ch
   max_text_length: &max_text_length 25
   use_space_char: &use_space_char False
-  save_res_path: ./output/rec/u14m_filter/predicts_svtrv2_rctc.txt
+  save_res_path: ./output/rec/ch/predicts_svtrv2_smtr_gtc_rctc_ch.txt
   use_amp: True
 
 Optimizer:
@@ -28,15 +30,16 @@ Optimizer:
 
 LRScheduler:
   name: OneCycleLR
-  warmup_epoch: 1.5 # pct_start 0.075*20 = 1.5ep
+  warmup_epoch: 5
   cycle_momentum: False
 
 Architecture:
   model_type: rec
   algorithm: SVTRv2
+  in_channels: 3
   Transform:
   Encoder:
-    name: SVTRv2LNConvTwo33
+    name: SVTRv2LNConvTwo33 
     use_pos_embed: False
     dims: [128, 256, 384]
     depths: [6, 6, 6]
@@ -47,47 +50,69 @@ Architecture:
     last_stage: false
     feat2d: True
   Decoder:
-    name: RCTCDecoder
+    name: GTCDecoder
+    infer_gtc: True
+    detach: False
+    gtc_decoder:
+      name: SMTRDecoder
+      num_layer: 1
+      ds: True
+      max_len: *max_text_length
+      next_mode: &next True
+      sub_str_len: &subsl 5
+    ctc_decoder:
+      name: RCTCDecoder
 
 Loss:
-  name: CTCLoss
-  zero_infinity: True
+  name: GTCLoss
+  ctc_weight: 0.1
+  gtc_loss:
+    name: SMTRLoss
 
 PostProcess:
-  name: CTCLabelDecode
+  name: GTCLabelDecode
+  gtc_label_decode:
+    name: SMTRLabelDecode
+    next_mode: *next
+  character_dict_path: *character_dict_path
+  use_space_char: *use_space_char
 
 Metric:
-  name: RecMetric
+  name: RecGTCMetric
   main_indicator: acc
-  is_filter: True
+  # is_filter: True
 
 Train:
   dataset:
     name: RatioDataSetTVResize
     ds_width: True
-    padding: False
-    # data_dir_list: ['../Union14M-L-LMDB-Filtered/filter_train_challenging',
-    # '../Union14M-L-LMDB-Filtered/filter_train_hard',
-    # '../Union14M-L-LMDB-Filtered/filter_train_medium',
-    # '../Union14M-L-LMDB-Filtered/filter_train_normal',
-    # '../Union14M-L-LMDB-Filtered/filter_train_easy',
-    # ]
-    data_dir_list: ['../Dataset/training/Union14M-L-LMDB-Filtered/filter_train_medium']
+    padding: false
+    # data_dir_list: 
+    # data_dir_list: /data/huawei/wzc/Dataset/training/BCTR/
+    data_dir_list: [
+     '/data/huawei/wzc/Dataset/training/BCTR/document_train',
+     '/data/huawei/wzc/Dataset/training/BCTR/scene_train',
+     '/data/huawei/wzc/Dataset/training/BCTR/web_train'
+    ]
     transforms:
       - DecodeImagePIL: # load image
           img_mode: RGB
       - PARSeqAugPIL:
-      - CTCLabelEncode: # Class handling label
+      - GTCLabelEncode: # Class handling label
+          gtc_label_encode:
+            name: SMTRLabelEncode
+            sub_str_len: *subsl
           character_dict_path: *character_dict_path
           use_space_char: *use_space_char
           max_text_length: *max_text_length
       - KeepKeys:
-          keep_keys: ['image', 'label', 'length']
+          keep_keys: ['image', 'label', 'label_subs', 'label_next', 'length_subs',
+          'label_subs_pre', 'label_next_pre', 'length_subs_pre', 'length', 'ctc_label', 'ctc_length'] # dataloader will return list in this order
   sampler:
     name: RatioSampler
     scales: [[128, 32]] # w, h
     # divide_factor: to ensure the width and height dimensions can be devided by downsampling multiple
-    first_bs: &bs 256
+    first_bs: &bs 128
     fix_bs: false
     divided_factor: [4, 16] # w, h
     is_training: True
@@ -95,7 +120,7 @@ Train:
     shuffle: True
     batch_size_per_card: *bs
     drop_last: True
-    max_ratio: 4
+    max_ratio: &max_ratio 8
     num_workers: 4
 
 Eval:
@@ -103,28 +128,29 @@ Eval:
     name: RatioDataSetTVResize
     ds_width: True
     padding: False
+    # data_dir: /data/huawei/wzc/Dataset/validation/BCTR/
     data_dir_list: [
-      '../Dataset/evaluation/CUTE80',
-      '../Dataset/evaluation/IC13_857',
-      '../Dataset/evaluation/IC15_1811',
-      '../Dataset/evaluation/IIIT5k',
-      '../Dataset/evaluation/SVT',
-      '../Dataset/evaluation/SVTP',
-      ]
+     '/data/huawei/wzc/Dataset/validation/BCTR/document_val',
+     '/data/huawei/wzc/Dataset/validation/BCTR/scene_val',
+     '/data/huawei/wzc/Dataset/validation/BCTR/web_val'
+    ]
+    
     transforms:
       - DecodeImagePIL: # load image
           img_mode: RGB
-      - CTCLabelEncode: # Class handling label
+      - GTCLabelEncode: # Class handling label
+          gtc_label_encode:
+            name: ARLabelEncode
           character_dict_path: *character_dict_path
           use_space_char: *use_space_char
           max_text_length: *max_text_length
       - KeepKeys:
-          keep_keys: ['image', 'label', 'length']
+          keep_keys: ['image', 'label', 'length', 'ctc_label', 'ctc_length'] # dataloader will return list in this order
   sampler:
     name: RatioSampler
     scales: [[128, 32]] # w, h
     # divide_factor: to ensure the width and height dimensions can be devided by downsampling multiple
-    first_bs: 256
+    first_bs: *bs
     fix_bs: false
     divided_factor: [4, 16] # w, h
     is_training: False
@@ -132,8 +158,5 @@ Eval:
     shuffle: False
     drop_last: False
     batch_size_per_card: *bs
-    max_ratio: 4
+    max_ratio: *max_ratio
     num_workers: 4
-
-
-

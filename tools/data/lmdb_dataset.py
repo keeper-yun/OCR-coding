@@ -36,7 +36,7 @@ class LMDBDataSet(Dataset):
     def load_hierarchical_lmdb_dataset(self, data_dir):
         lmdb_sets = {}
         dataset_idx = 0
-        for dirpath, dirnames, filenames in os.walk(data_dir + '/'):
+        for dirpath, dirnames, filenames in os.walk(data_dir + '/', followlinks=True):
             if not dirnames:
                 env = lmdb.open(
                     dirpath,

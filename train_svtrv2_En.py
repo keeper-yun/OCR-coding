@@ -7,12 +7,11 @@ import sys
 import runpy
 
 # ============================================================
-# SVTRv2 RCTC Mini Training
+# SVTRv2 RCTC Training
 # ============================================================
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = "configs/rec/svtrv2/svtrv2_rctc_try.yml"
-
 # 切换到 OpenOCR 项目根目录
 os.chdir(PROJECT_ROOT)
 
@@ -39,11 +38,6 @@ if __name__ == "__main__":
     print("Starting training...")
     print("=" * 70)
 
-    # 等价于：
-    #
-    # python tools/train_rec.py \
-    #     -c configs/rec/svtrv2/svtrv2_rctc_try.yml
-
     sys.argv = [
         "tools/train_rec.py",
         "-c",
@@ -54,3 +48,4 @@ if __name__ == "__main__":
         os.path.join(PROJECT_ROOT, "tools", "train_rec.py"),
         run_name="__main__"
     )
+
